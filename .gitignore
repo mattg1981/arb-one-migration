@@ -1,0 +1,5 @@
+/.env
+/venv/
+/logs/*.log
+/database/*.db
+/out/
