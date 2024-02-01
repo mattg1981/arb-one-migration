@@ -3,6 +3,9 @@
   "infura.io": {
     "api_url": "https://mainnet.infura.io/v3/"
   },
+  "addresses": {
+    "shuttle": "0x478a4523ca9ac05FA91a1bB5b38131B55f9647b6"
+  },
   "multisig": {
     "gnosis": "0x682b5664C2b9a6a93749f2159F95c23fEd654F0A",
     "mainnet": "",
@@ -19,6 +22,11 @@
       "donut": "0x524B969793a64a602342d89BC2789D43a016B13A",
       "lp": "0x077240a400b1740C8cD6f73DEa37DA1F703D8c00",
       "staking": "0x84b427415A23bFB57Eb94a0dB6a818EB63E2429D"
+    },
+    "arb1": {
+      "contrib": "0xF28831db80a616dc33A5869f6F689F54ADd5b74C",
+      "donut": "0xF42e2B8bc2aF8B110b65be98dB1321B1ab8D44f5",
+      "distribute": "0xf4d6a6585BDaebB6456050Ae456Bc69ea7f51838"
     }
   }
 }
