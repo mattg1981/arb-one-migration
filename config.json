@@ -1,8 +1,5 @@
 {
-  "log_path": "logs/arb-one-migration.log",
-  "infura.io": {
-    "api_url": "https://mainnet.infura.io/v3/"
-  },
+  "db_location": "arb1.db",
   "addresses": {
     "shuttle": "0x478a4523ca9ac05FA91a1bB5b38131B55f9647b6"
   },
