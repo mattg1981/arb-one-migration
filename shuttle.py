@@ -54,8 +54,6 @@ if __name__ == '__main__':
     sqlite3.register_adapter(Decimal, lambda s: str(s))
     sqlite3.register_converter("Decimal", lambda s: Decimal(s))
 
-    saved_db_transactions = []
-
     with sqlite3.connect(config["db_location"]) as db:
         db.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
         sql_create = """        
@@ -215,8 +213,15 @@ if __name__ == '__main__':
         gno_notifications = cur.fetchall()
 
     for gno_notification in gno_notifications:
+        if Decimal(gno_notification['readable_amount']) <= Decimal(MIN_SHUTTLE_AMOUNT):
+            message = config["lottery_message"]
+            subject = 'Arb1 Shuttle - Lottery Entry!'
+        else:
+            message = config["gno_confirmation_message"]
+            subject = 'Arb1 Shuttle - Gnosis deposit found!'
+
         # create message
-        message = (config["gno_confirmation_message"]
+        message = (message
                    .replace("#NAME#", gno_notification['from_user'])
                    .replace("#GNO_TX_HASH#", gno_notification['gno_tx_hash'])
                    .replace("#AMOUNT#", str(gno_notification['readable_amount']))
@@ -224,7 +229,7 @@ if __name__ == '__main__':
 
         # send message
         try:
-            reddit.redditor(gno_notification['from_user']).message(subject="Arb1 Shuttle - Gnosis deposit found!", message=message)
+            reddit.redditor(gno_notification['from_user']).message(subject=subject, message=message)
         except Exception as e:
             logger.error(f"  could not send notification to [{gno_notification['from_user']}]")
 
@@ -258,13 +263,13 @@ if __name__ == '__main__':
           (select *, row_number() over (partition by from_address order by created_at asc) rank
           from shuttle
           where processed_at is null)
-        where rank = 1 and from_address not in (select from_address from shuttle where processed_at is not null);
+        where rank = 1 and readable_amount > ? and from_address not in (select from_address from shuttle where processed_at is not null);
         '''
 
     with sqlite3.connect(config["db_location"]) as db:
         db.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
         cur = db.cursor()
-        cur.execute(shuttle_sql)
+        cur.execute(shuttle_sql, [MIN_SHUTTLE_AMOUNT])
         shuttles = cur.fetchall()
 
     logger.info(f"  {len(shuttles)} shuttles found...")
