@@ -305,7 +305,8 @@ if __name__ == '__main__':
         distribute_tx_list.append({
             "address": Web3.to_checksum_address(shuttle['from_address']),
             "amt": int(shuttle["blockchain_amount"]),
-            "gno_tx_hash": shuttle["gno_tx_hash"]
+            "gno_tx_hash": shuttle["gno_tx_hash"],
+            "gno_timestamp": shuttle["gno_timestamp"]
         })
 
     logger.info(f"{len(distribute_tx_list)} of {len(shuttles)} shuttles can be processed at this time")
