@@ -1,10 +1,12 @@
 {
   "db_location": "arb1.db",
+  "shuttle_message": "Hi #NAME#, your Gnosis -> Arbitrum One shuttle has been successfully completed.  Please see the details below: \n\n**GNOSIS TX HASH:** #GNO_TX_HASH#\n\n**ARB1 TX HASH:** #ARB_TX_HASH#\n\n**AMOUNT:** #AMOUNT#\n\n**TOKEN:** #TOKEN#",
+  "gno_confirmation_message": "Hi #NAME#, your Gnosis -> Arbitrum One deposit has been recorded on the Gnosis chain.  Please note this is a generic message and if the transaction is less than 30 Donuts, it will be considered a lottery submission.  In addition, only 1 shuttle transaction is allowed so if this is not the first transaction you have submitted, it will be ignored.  Your assets will be distributed on Arbitrum One when all the criteria has been met.  Please see the details below: \n\n**GNOSIS TX HASH:** #GNO_TX_HASH#\n\n**AMOUNT:** #AMOUNT#\n\n**TOKEN:** #TOKEN#",
   "addresses": {
     "shuttle": "0x478a4523ca9ac05FA91a1bB5b38131B55f9647b6"
   },
   "multisig": {
-    "gnosis": "0x682b5664C2b9a6a93749f2159F95c23fEd654F0A",
+    "gnosis": "0x51871f5Fb2e8a04a874F02262b5bEF28c60AC6EE",
     "mainnet": "",
     "arb1": "0x439ceE4cC4EcBD75DC08D9a17E92bDdCc11CDb8C"
   },
