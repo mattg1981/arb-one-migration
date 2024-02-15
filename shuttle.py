@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 from web3 import Web3
 
 MAX_SHUTTLES_ALLOWED_PER_USER = 1
+MAX_HOURS_FOR_OLDEST_TX = 24
 MIN_SHUTTLE_AMOUNT = 30
 SHUTTLES_NEEDED_FOR_TX = 20
 # SHUTTLE_STARTING_BLOCK = 31762742
@@ -262,8 +263,8 @@ if __name__ == '__main__':
         from
           (select *, row_number() over (partition by from_address order by created_at asc) rank
           from shuttle
-          where processed_at is null)
-        where rank = 1 and readable_amount > ? and from_address not in (select from_address from shuttle where processed_at is not null);
+          where readable_amount > ? and processed_at is null)
+        where rank = 1 and from_address not in (select from_address from shuttle where processed_at is not null);
         '''
 
     with sqlite3.connect(config["db_location"]) as db:
@@ -324,11 +325,9 @@ if __name__ == '__main__':
             logger.info("  enough shuttles in this transaction, proceed...")
             do_blockchain_tx = True
         else:
-            min_date = min([s['gno_timestamp'] for s in distribute_tx_list])
-            min_date = datetime.fromisoformat(min_date)
-            time_since_insertion = datetime.now() - min_date
-            if time_since_insertion.days >= 2:
-                logger.info("  oldest shuttle is more than 48 hours, proceed...")
+            min_date = datetime.fromisoformat(min([s['gno_timestamp'] for s in distribute_tx_list]))
+            if datetime.now() - timedelta(hours=MAX_HOURS_FOR_OLDEST_TX) >= min_date:
+                logger.info(f"  oldest shuttle is more than {str(MAX_HOURS_FOR_OLDEST_TX)} hours, proceed...")
                 do_blockchain_tx = True
 
         if not do_blockchain_tx:
@@ -407,6 +406,7 @@ if __name__ == '__main__':
                    .replace("#ARB_TX_HASH#", n['arb_tx_hash'])
                    .replace("#GNO_TX_HASH#", n['gno_tx_hash'])
                    .replace("#AMOUNT#", str(n['readable_amount']))
+                   .replace("#SHUTTLE_MIN#", str(MIN_SHUTTLE_AMOUNT))
                    .replace("#TOKEN#", "DONUT"))
 
         # send message
