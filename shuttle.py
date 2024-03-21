@@ -14,71 +14,17 @@ from dotenv import load_dotenv
 from web3 import Web3
 
 MAX_SHUTTLES_ALLOWED_PER_USER = 1
-MAX_HOURS_FOR_OLDEST_TX = 24
+MAX_HOURS_FOR_OLDEST_TX = 48
 MIN_SHUTTLE_AMOUNT = 30
-SHUTTLES_NEEDED_FOR_TX = 20
-# SHUTTLE_STARTING_BLOCK = 31762742
-SHUTTLE_STARTING_BLOCK = 32339884
+SHUTTLES_NEEDED_FOR_TX = 40
+SHUTTLE_STARTING_BLOCK = 33043953
 
-if __name__ == '__main__':
-    # load environment variables
-    load_dotenv()
 
-    # load config
-    with open(os.path.normpath("config.json"), 'r') as f:
-        config = json.load(f)
-
-    # set up logging
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    log_name = os.path.basename(__file__)[:-3]
-    logger = logging.getLogger(log_name)
-    logger.setLevel(logging.INFO)
-
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    log_path = os.path.join(base_dir, f"logs/{log_name}.log")
-    file_handler = RotatingFileHandler(os.path.normpath(log_path), maxBytes=2500000, backupCount=4)
-    file_handler.setFormatter(formatter)
-    console_handler = logging.StreamHandler()
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
-
-    # set up praw
-    reddit = praw.Reddit(client_id=os.getenv('REDDIT_CLIENT_ID'),
-                         client_secret=os.getenv('REDDIT_CLIENT_SECRET'),
-                         username=os.getenv('REDDIT_USERNAME'),
-                         password=os.getenv('REDDIT_PASSWORD'),
-                         user_agent="arb1 shuttle by u/mattg1981")
-
-    logger.info("begin...")
-
-    # setup db
-    sqlite3.register_adapter(Decimal, lambda s: str(s))
-    sqlite3.register_converter("Decimal", lambda s: Decimal(s))
-
+def do_shuttle():
     with sqlite3.connect(config["db_location"]) as db:
         db.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
-        sql_create = """        
-            CREATE TABLE IF NOT EXISTS
-            shuttle (
-                id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-                from_user NVARCHAR2 COLLATE NOCASE,
-                from_address NVARCHAR2 NOT NULL COLLATE NOCASE,
-                blockchain_amount text NOT NULL,
-                readable_amount DECIMAL(8, 7) NOT NULL,
-                block_number INTEGER NOT NULL,
-                gno_tx_hash NVARCHAR2 NOT NULL COLLATE NOCASE,
-                arb_tx_hash NVARCHAR2 COLLATE NOCASE,
-                gno_timestamp DATETIME NOT NULL,
-                processed_at DATETIME,
-                notified_at DATETIME,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-            );
-        """
         cur = db.cursor()
-        cur.executescript(sql_create)
-
-        db_tx_sql = "select gno_tx_hash from shuttle;"
-        cur.execute(db_tx_sql)
+        cur.execute("select gno_tx_hash from shuttle;")
         saved_db_transactions = cur.fetchall()
 
     saved_db_transactions = [x['gno_tx_hash'] for x in saved_db_transactions]
@@ -88,7 +34,7 @@ if __name__ == '__main__':
     logger.info("grabbing users.json file...")
     users = json.load(request.urlopen(f"https://ethtrader.github.io/donut.distribution/users.json"))
 
-    # donut
+    # donut on gnosis
     valid_tokens = [config["contracts"]["gnosis"]["donut"].lower()]
 
     # EthTraderCommunity
@@ -101,16 +47,16 @@ if __name__ == '__main__':
 
     if not json_result["result"]:
         logger.info("no results ... complete")
-        exit(0)
+        return
 
     # connect to ankr api
     logger.info("connecting to ANKR api...")
-    w3 = Web3(Web3.HTTPProvider(os.getenv('ANKR_API_PROVIDER')))
-    if w3.is_connected():
+    w3_gno = Web3(Web3.HTTPProvider(os.getenv('ANKR_API_PROVIDER')))
+    if w3_gno.is_connected():
         logger.info("  success.")
     else:
         logger.error(f"  failed to connect to ANKR: aborting....")
-        exit(4)
+        return
 
     dt_process_runtime = datetime.now()
 
@@ -131,7 +77,7 @@ if __name__ == '__main__':
         if tx["to"].lower() != config['multisig']['gnosis'].lower():
             continue
 
-        w3_transaction = w3.eth.get_transaction(tx_hash)
+        w3_transaction = w3_gno.eth.get_transaction(tx_hash)
         inpt = w3_transaction.input.hex()
 
         # not a transfer event
@@ -159,31 +105,31 @@ if __name__ == '__main__':
         from_address = tx["from"]
         to_address = tx["to"]
         blockchain_amount = tx["value"]
-        amount = w3.from_wei(int(tx["value"]), "ether")
+        amount = w3_gno.from_wei(int(tx["value"]), "ether")
         block = tx["blockNumber"]
         timestamp = datetime.fromtimestamp(int(tx["timeStamp"]))
 
         logger.info("  save tx to db if not already present...")
 
         sql_insert = """
-            INSERT INTO shuttle (from_address, blockchain_amount, readable_amount, block_number,
-                gno_tx_hash, gno_timestamp, created_at)
-            SELECT ?, ?, ?, ?, ?, ?, ?
-            WHERE NOT EXISTS (select 1 from shuttle where gno_tx_hash = ?);
-        """
+                INSERT INTO shuttle (from_address, blockchain_amount, readable_amount, block_number,
+                    gno_tx_hash, gno_timestamp, created_at)
+                SELECT ?, ?, ?, ?, ?, ?, ?
+                WHERE NOT EXISTS (select 1 from shuttle where gno_tx_hash = ?);
+            """
 
         with sqlite3.connect(config["db_location"]) as db:
             cur = db.cursor()
             cur.execute(sql_insert, [from_address, blockchain_amount, amount, block,
-                                         tx_hash, timestamp, dt_process_runtime, tx_hash])
+                                     tx_hash, timestamp, dt_process_runtime, tx_hash])
 
     # attempt to name match any shuttles where we do not have user information
     # (including new records just inserted)
     logger.info("attempt to match any addresses without usernames...")
 
     unmatched_sql = '''
-        select * from shuttle where processed_at is null and from_user is null;
-        '''
+            select * from shuttle where processed_at is null and from_user is null;
+            '''
     with sqlite3.connect(config["db_location"]) as db:
         db.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
         cur = db.cursor()
@@ -197,16 +143,17 @@ if __name__ == '__main__':
         # however, this should not be an issue as I expect low volume
         if username:
             match_sql = '''
-                    update shuttle set from_user = ? where from_address = ?;
-                '''
+                        update shuttle set from_user = ? where from_address = ?;
+                    '''
             with sqlite3.connect(config["db_location"]) as db:
                 cur = db.cursor()
                 cur.execute(match_sql, [username[0], record['from_address']])
 
     logger.info("notify users about gnosis transaction being discovered...")
     gno_notify_sql = '''
-            select * from shuttle where created_at = ?;
-            '''
+                select * from shuttle where created_at = ?;
+                '''
+
     with sqlite3.connect(config["db_location"]) as db:
         db.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
         cur = db.cursor()
@@ -214,7 +161,7 @@ if __name__ == '__main__':
         gno_notifications = cur.fetchall()
 
     for gno_notification in gno_notifications:
-        if Decimal(gno_notification['readable_amount']) <= Decimal(MIN_SHUTTLE_AMOUNT):
+        if Decimal(gno_notification['readable_amount']) < Decimal(MIN_SHUTTLE_AMOUNT):
             message = config["lottery_message"]
             subject = 'Arb1 Shuttle - Lottery Entry!'
         else:
@@ -234,38 +181,30 @@ if __name__ == '__main__':
         except Exception as e:
             logger.error(f"  could not send notification to [{gno_notification['from_user']}]")
 
-
     logger.info("begin processing shuttles...")
     logger.info("connect to INUFRA...")
 
     # switch w3 provider over to Arb1
-    w3 = None
-    for i in range(10):
-        w3 = Web3(Web3.HTTPProvider(os.getenv('INFURA_IO_API')))
+    w3_arb = Web3(Web3.HTTPProvider(os.getenv('INFURA_IO_API')))
 
-        if not w3.is_connected():
-            logger.error(f"failed to connect to INFURA: attempt {i}")
-            time.sleep(5)
-        else:
-            logger.info("  success.")
-            break
-
-    if not w3:
-        logger.error("exhausted all INFURA attempts, aborting....")
-        exit(4)
+    if not w3_arb.is_connected():
+        logger.error("failed to connect to INFURA")
+        return
+    else:
+        logger.info("  success.")
 
     # get shuttle records from db
     logger.info("get shuttles from db...")
 
     # select the first shuttle transaction per user
     shuttle_sql = '''
-        select * 
-        from
-          (select *, row_number() over (partition by from_address order by created_at asc) rank
-          from shuttle
-          where readable_amount > ? and processed_at is null)
-        where rank = 1 and from_address not in (select from_address from shuttle where processed_at is not null);
-        '''
+            select * 
+            from
+              (select *, row_number() over (partition by from_address order by created_at asc) rank
+              from shuttle
+              where readable_amount >= ? and processed_at is null)
+            where rank = 1 and from_address not in (select from_address from shuttle where processed_at is not null);
+            '''
 
     with sqlite3.connect(config["db_location"]) as db:
         db.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
@@ -281,12 +220,12 @@ if __name__ == '__main__':
     with open('abi/erc20.json') as abi_file:
         donut_abi = json.load(abi_file)
 
-    shuttle_address = w3.to_checksum_address(config['addresses']["shuttle"])
-    donut_address = w3.to_checksum_address(config["contracts"]["arb1"]["donut"])
-    distribute_address = w3.to_checksum_address(config["contracts"]["arb1"]["distribute"])
+    shuttle_address = w3_arb.to_checksum_address(config['addresses']["shuttle"])
+    donut_address = w3_arb.to_checksum_address(config["contracts"]["arb1"]["donut"])
+    distribute_address = w3_arb.to_checksum_address(config["contracts"]["arb1"]["distribute"])
 
-    distribute_contract = w3.eth.contract(address=distribute_address, abi=distribute_abi)
-    donut_contract = w3.eth.contract(address=donut_address, abi=donut_abi)
+    distribute_contract = w3_arb.eth.contract(address=distribute_address, abi=distribute_abi)
+    donut_contract = w3_arb.eth.contract(address=donut_address, abi=donut_abi)
     donut_balance = donut_contract.functions.balanceOf(shuttle_address).call()
 
     distribute_tx_list = []
@@ -295,7 +234,7 @@ if __name__ == '__main__':
     for shuttle in shuttles:
         logger.info(f"processing address [addr={shuttle['from_address']}]")
 
-        if int(shuttle["readable_amount"] <= MIN_SHUTTLE_AMOUNT):
+        if int(shuttle["readable_amount"] < MIN_SHUTTLE_AMOUNT):
             logger.info(
                 f" shuttle amount too small: "
                 f"shuttle amount [{shuttle['readable_amount']}] - minimum required [{MIN_SHUTTLE_AMOUNT}]")
@@ -334,7 +273,8 @@ if __name__ == '__main__':
             logger.info("  criteria not met, will not perform the transaction...")
         else:
             logger.info("checking gas balance...")
-            gas_balance = w3.from_wei(w3.eth.get_balance(shuttle_address), "ether")
+            gas_balance = w3_arb.from_wei(w3_arb.eth.get_balance(shuttle_address), "ether")
+
             if gas_balance < 0.0005:
                 logger.error(f" shuttle is out of gas. balance: [{gas_balance}]")
                 exit(4)
@@ -346,48 +286,49 @@ if __name__ == '__main__':
                 donut_address
             ).build_transaction({
                 'from': shuttle_address,
-                'nonce': w3.eth.get_transaction_count(shuttle_address)
+                'nonce': w3_arb.eth.get_transaction_count(shuttle_address)
             })
 
             # sign the transaction
-            signed = w3.eth.account.sign_transaction(transaction, os.getenv('SHUTTLE_PRIVATE_KEY'))
+            signed = w3_arb.eth.account.sign_transaction(transaction, os.getenv('SHUTTLE_PRIVATE_KEY'))
 
             # send the transaction
             logger.info("sending blockchain transaction...")
-            tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
-            receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+            tx_hash = w3_arb.eth.send_raw_transaction(signed.rawTransaction)
+            receipt = w3_arb.eth.wait_for_transaction_receipt(tx_hash)
 
             if receipt.status:
-                human_readable_tx_hash = w3.to_hex(tx_hash)
+                human_readable_tx_hash = w3_arb.to_hex(tx_hash)
                 logger.info(f" success! tx_hash: [{human_readable_tx_hash}]")
             else:
                 logger.error("  transaction failed!")
                 logger.error(f"  receipt {receipt}")
-                exit(4)
+                return
 
             logger.info("update db...")
             try:
                 for distribute_tx in distribute_tx_list:
                     update_sql = '''
-                        update shuttle set processed_at = ?, arb_tx_hash = ? where gno_tx_hash = ?;
-                    '''
+                            update shuttle set processed_at = ?, arb_tx_hash = ? where gno_tx_hash = ?;
+                        '''
                     with sqlite3.connect(config["db_location"]) as db:
                         cur = db.cursor()
                         cur.execute(update_sql, [datetime.now(), human_readable_tx_hash, distribute_tx["gno_tx_hash"]])
             except Exception as e:
                 logger.critical(e)
-                exit(4)
+                return
 
     # find transactions that need to be notified (if any)
     logger.info("finding transactions that need notifications ...")
 
     notification_sql = '''
-                    select * 
-                    from shuttle 
-                    where processed_at is not null 
-                      and notified_at is null 
-                      and from_user is not null;
-                '''
+                        select * 
+                        from shuttle 
+                        where processed_at is not null 
+                          and notified_at is null 
+                          and from_user is not null;
+                    '''
+
     with sqlite3.connect(config["db_location"]) as db:
         db.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
         cur = db.cursor()
@@ -419,10 +360,10 @@ if __name__ == '__main__':
         logger.info("updating sql notified_at")
 
         notification_update_sql = '''
-            update shuttle 
-            set notified_at = ?
-            where gno_tx_hash = ?
-        '''
+                update shuttle 
+                set notified_at = ?
+                where gno_tx_hash = ?
+            '''
 
         with sqlite3.connect(config["db_location"]) as db:
             cur = db.cursor()
@@ -430,6 +371,71 @@ if __name__ == '__main__':
 
         logger.info("  successfully updated db... ")
 
-        time.sleep(3)
+        time.sleep(1)
 
     logger.info("complete.")
+
+
+if __name__ == '__main__':
+    # load environment variables
+    load_dotenv()
+
+    # load config
+    with open(os.path.normpath("config.json"), 'r') as f:
+        config = json.load(f)
+
+    # set up logging
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    log_name = os.path.basename(__file__)[:-3]
+    logger = logging.getLogger(log_name)
+    logger.setLevel(logging.INFO)
+
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    log_path = os.path.join(base_dir, f"logs/{log_name}.log")
+    file_handler = RotatingFileHandler(os.path.normpath(log_path), maxBytes=2500000, backupCount=100)
+    file_handler.setFormatter(formatter)
+    console_handler = logging.StreamHandler()
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+
+    # set up praw
+    reddit = praw.Reddit(client_id=os.getenv('REDDIT_CLIENT_ID'),
+                         client_secret=os.getenv('REDDIT_CLIENT_SECRET'),
+                         username=os.getenv('REDDIT_USERNAME'),
+                         password=os.getenv('REDDIT_PASSWORD'),
+                         user_agent="arb1 shuttle by u/mattg1981")
+
+    # setup db
+    sqlite3.register_adapter(Decimal, lambda s: str(s))
+    sqlite3.register_converter("Decimal", lambda s: Decimal(s))
+
+    with sqlite3.connect(config["db_location"]) as db:
+        sql_create = """        
+                CREATE TABLE IF NOT EXISTS
+                shuttle (
+                    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    from_user NVARCHAR2 COLLATE NOCASE,
+                    from_address NVARCHAR2 NOT NULL COLLATE NOCASE,
+                    blockchain_amount text NOT NULL,
+                    readable_amount DECIMAL(8, 7) NOT NULL,
+                    block_number INTEGER NOT NULL,
+                    gno_tx_hash NVARCHAR2 NOT NULL COLLATE NOCASE,
+                    arb_tx_hash NVARCHAR2 COLLATE NOCASE,
+                    gno_timestamp DATETIME NOT NULL,
+                    processed_at DATETIME,
+                    notified_at DATETIME,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+            """
+        cur = db.cursor()
+        cur.executescript(sql_create)
+
+    logger.info("begin...")
+
+    while True:
+        try:
+            do_shuttle()
+        except Exception as e:
+            logger.error(e)
+        finally:
+            time.sleep(60)
