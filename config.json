@@ -1,14 +1,14 @@
 {
   "db_location": "arb1.db",
-  "lottery_message": "Hi #NAME#, your Gnosis -> Arbitrum One deposit has been recorded on the Gnosis chain, but it is less than the required amount of #SHUTTLE_MIN# Donuts for the shuttle.  However, this enters you into a winner-takes-all lottery where the pool is comprised of all transactions under the shuttle threshold. Only 1 entry is allowed per wallet. Please see the details below: \n\n**GNOSIS TX HASH:** #GNO_TX_HASH#\n\n**AMOUNT:** #AMOUNT#\n\n**TOKEN:** #TOKEN#",
-  "shuttle_message": "Hi #NAME#, your Gnosis -> Arbitrum One shuttle has been successfully completed.  Please see the details below: \n\n**GNOSIS TX HASH:** #GNO_TX_HASH#\n\n**ARB1 TX HASH:** #ARB_TX_HASH#\n\n**AMOUNT:** #AMOUNT#\n\n**TOKEN:** #TOKEN#",
-  "gno_confirmation_message": "Hi #NAME#, your Gnosis -> Arbitrum One deposit has been recorded on the Gnosis chain.  Please note this is a generic message and that only 1 shuttle transaction is allowed.  If this is not the first transaction you have submitted, it will be ignored.  Your assets will be distributed on Arbitrum One when all the criteria has been met.  Please see the details below: \n\n**GNOSIS TX HASH:** #GNO_TX_HASH#\n\n**AMOUNT:** #AMOUNT#\n\n**TOKEN:** #TOKEN#",
+  "lottery_message": "Hi #NAME#, your Gnosis -> Arbitrum One deposit has been located on the Gnosis chain, but it is less than the required amount of #SHUTTLE_MIN# Donuts for the shuttle.  However, this enters you into a winner-takes-all lottery where the pool is comprised of all transactions under the shuttle threshold. Only 1 entry is allowed per wallet. Please see the details below: \n\n**GNOSIS TX HASH:** #GNO_TX_HASH#\n\n**AMOUNT:** #AMOUNT#\n\n**TOKEN:** #TOKEN#",
+  "shuttle_message": "Hi #NAME#, your Gnosis -> Arbitrum One shuttle has been successfully completed and you have received your funds on the Arbitrum One network.  Please see the details below: \n\n**GNOSIS TX HASH:** #GNO_TX_HASH#\n\n**ARB1 TX HASH:** #ARB_TX_HASH#\n\n**AMOUNT:** #AMOUNT#\n\n**TOKEN:** #TOKEN#",
+  "gno_confirmation_message": "Hi #NAME#, your Gnosis -> Arbitrum One deposit has been located on the Gnosis chain. Your assets will be distributed on Arbitrum One when all the criteria has been met.  Please see the details below: \n\n**GNOSIS TX HASH:** #GNO_TX_HASH#\n\n**AMOUNT:** #AMOUNT#\n\n**TOKEN:** #TOKEN#",
   "addresses": {
-    "shuttle": "0x478a4523ca9ac05FA91a1bB5b38131B55f9647b6"
+    "shuttle": "0x51871f5Fb2e8a04a874F02262b5bEF28c60AC6EE"
   },
   "multisig": {
-    "gnosis": "0x51871f5Fb2e8a04a874F02262b5bEF28c60AC6EE",
-    "mainnet": "",
+    "gnosis": "0x682b5664C2b9a6a93749f2159F95c23fEd654F0A",
+    "mainnet": "0x367b68554f9CE16A87fD0B6cE4E70d465A0C940E",
     "arb1": "0x439ceE4cC4EcBD75DC08D9a17E92bDdCc11CDb8C"
   },
   "contracts": {
