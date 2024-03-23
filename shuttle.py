@@ -14,10 +14,11 @@ from dotenv import load_dotenv
 from web3 import Web3
 
 MAX_SHUTTLES_ALLOWED_PER_USER = 1
-MAX_HOURS_FOR_OLDEST_TX = 48
-MIN_SHUTTLE_AMOUNT = 30
-SHUTTLES_NEEDED_FOR_TX = 40
-SHUTTLE_STARTING_BLOCK = 33043953
+MAX_HOURS_FOR_OLDEST_TX = 12
+MIN_SHUTTLE_AMOUNT = 10
+SHUTTLES_NEEDED_FOR_TX = 10
+#SHUTTLE_STARTING_BLOCK = 33043953
+SHUTTLE_STARTING_BLOCK = 33072948
 
 
 def do_shuttle():
@@ -45,9 +46,10 @@ def do_shuttle():
     gnosis_url = f"https://api.gnosisscan.io/api?module=account&action=tokentx&address={config['multisig']['gnosis']}&startblock={SHUTTLE_STARTING_BLOCK}&endblock=99999999&page=1&offset=10000&sort=asc&apikey={os.getenv('GNOSIS_SCAN_IO_API_KEY')}"
     json_result = json.load(request.urlopen(gnosis_url))
 
+
     if not json_result["result"]:
         logger.info("no results ... complete")
-        return
+        # return
 
     # connect to ankr api
     logger.info("connecting to ANKR api...")
@@ -58,70 +60,85 @@ def do_shuttle():
         logger.error(f"  failed to connect to ANKR: aborting....")
         return
 
+    # with open('abi/erc20.json') as abi_file:
+    #     donut_abi = json.load(abi_file)
+    #
+    # donut_address = w3_gno.to_checksum_address(config["contracts"]["gnosis"]["donut"])
+    # donut_contract = w3_gno.eth.contract(address=donut_address, abi=donut_abi)
+
+    # tranfers = donut_contract.events.transfer().get_logs(fromBlock=SHUTTLE_STARTING_BLOCK)
+    # for transfer in tranfers:
+    #     receipt = w3_gno.eth.get_transaction_receipt(transfer.transactionHash)
+    #
+    #     if not receipt['status']:
+    #         continue
+
+
     dt_process_runtime = datetime.now()
 
     # iterate the gnosis transactions
-    for tx in json_result["result"]:
-        tx_hash = tx["hash"]
-        logger.debug(f"[tx_hash]: {tx_hash}")
+    if json_result["result"]:
+        for tx in json_result["result"]:
+            tx_hash = tx["hash"]
+            logger.debug(f"[tx_hash]: {tx_hash}")
 
-        if tx_hash in saved_db_transactions:
-            continue
+            if tx_hash in saved_db_transactions:
+                continue
 
-        if tx["contractAddress"].lower() not in valid_tokens:
-            continue
+            if tx["contractAddress"].lower() not in valid_tokens:
+                continue
 
-        if tx["from"].lower() in ignored_addresses:
-            continue
+            if tx["from"].lower() in ignored_addresses:
+                continue
 
-        if tx["to"].lower() != config['multisig']['gnosis'].lower():
-            continue
+            if tx["to"].lower() != config['multisig']['gnosis'].lower():
+                continue
 
-        w3_transaction = w3_gno.eth.get_transaction(tx_hash)
-        inpt = w3_transaction.input.hex()
+            w3_transaction = w3_gno.eth.get_transaction(tx_hash)
+            inpt = w3_transaction.input.hex()
 
-        # not a transfer event
-        if not inpt[:10] == "0xa9059cbb":
-            logger.debug(f"  not a transfer transaction [tx_hash]: {tx_hash}")
-            continue
+            # not a transfer event
+            if not inpt[:10] == "0xa9059cbb":
+                logger.debug(f"  not a transfer transaction [tx_hash]: {tx_hash}")
+                continue
 
-        logger.info(f"processing [tx_hash]: {tx_hash}")
+            logger.info(f"processing [tx_hash]: {tx_hash}")
 
-        # ensure at least 100 confirmations
-        if not int(tx['confirmations']) >= 100:
-            logger.info(f"  transaction does not have 100 confirmations yet ...")
-            continue
+            # ensure at least 100 confirmations
+            if not int(tx['confirmations']) >= 100:
+                logger.info(f"  transaction does not have 100 confirmations yet ...")
+                continue
 
-        # confirm the status of the tx hash = 1 (success)
-        logger.info(f"  confirming status...")
-        tx_receipt_url = f"https://api.gnosisscan.io/api?module=transaction&action=gettxreceiptstatus&txhash={tx_hash}&apikey={os.getenv('GNOSIS_SCAN_IO_API_KEY')}"
-        tx_receipt = json.load(request.urlopen(tx_receipt_url))
-        if not (tx_receipt["result"]["status"]):
-            logger.warning(f"    [tx_hash]: {tx_hash} indicates a failed status, skipping ...")
-            continue
-        else:
-            logger.info("    success.")
+            # confirm the status of the tx hash = 1 (success)
+            logger.info(f"  confirming status...")
+            tx_receipt_url = f"https://api.gnosisscan.io/api?module=transaction&action=gettxreceiptstatus&txhash={tx_hash}&apikey={os.getenv('GNOSIS_SCAN_IO_API_KEY')}"
+            tx_receipt = json.load(request.urlopen(tx_receipt_url))
+            if not (tx_receipt["result"]["status"]):
+                logger.warning(f"    [tx_hash]: {tx_hash} indicates a failed status, skipping ...")
+                continue
+            else:
+                logger.info("    success.")
 
-        from_address = tx["from"]
-        to_address = tx["to"]
-        blockchain_amount = tx["value"]
-        amount = w3_gno.from_wei(int(tx["value"]), "ether")
-        block = tx["blockNumber"]
-        timestamp = datetime.fromtimestamp(int(tx["timeStamp"]))
+            from_address = tx["from"]
+            to_address = tx["to"]
+            blockchain_amount = tx["value"]
+            amount = w3_gno.from_wei(int(tx["value"]), "ether")
+            block = tx["blockNumber"]
+            timestamp = datetime.fromtimestamp(int(tx["timeStamp"]))
 
-        logger.info("  save tx to db if not already present...")
+            logger.info("  save tx to db if not already present...")
 
-        sql_insert = """
-                INSERT INTO shuttle (from_address, blockchain_amount, readable_amount, block_number,
-                    gno_tx_hash, gno_timestamp, created_at)
-                SELECT ?, ?, ?, ?, ?, ?, ?
-                WHERE NOT EXISTS (select 1 from shuttle where gno_tx_hash = ?);
-            """
+            sql_insert = """
+                    INSERT INTO shuttle (from_address, blockchain_amount, readable_amount, block_number,
+                        gno_tx_hash, gno_timestamp, created_at)
+                    SELECT ?, ?, ?, ?, ?, ?, ?
+                    WHERE NOT EXISTS (select 1 from shuttle where gno_tx_hash = ?);
+                """
 
-        with sqlite3.connect(config["db_location"]) as db:
-            cur = db.cursor()
-            cur.execute(sql_insert, [from_address, blockchain_amount, amount, block,
-                                     tx_hash, timestamp, dt_process_runtime, tx_hash])
+            with sqlite3.connect(config["db_location"]) as db:
+                cur = db.cursor()
+                cur.execute(sql_insert, [from_address, blockchain_amount, amount, block,
+                                         tx_hash, timestamp, dt_process_runtime, tx_hash])
 
     # attempt to name match any shuttles where we do not have user information
     # (including new records just inserted)
@@ -316,7 +333,7 @@ def do_shuttle():
                         cur.execute(update_sql, [datetime.now(), human_readable_tx_hash, distribute_tx["gno_tx_hash"]])
             except Exception as e:
                 logger.critical(e)
-                return
+                exit(4)
 
     # find transactions that need to be notified (if any)
     logger.info("finding transactions that need notifications ...")
@@ -438,4 +455,5 @@ if __name__ == '__main__':
         except Exception as e:
             logger.error(e)
         finally:
-            time.sleep(60)
+            logger.info("sleep 240 ....")
+            time.sleep(240)
