@@ -17,8 +17,8 @@ MAX_SHUTTLES_ALLOWED_PER_USER = 1
 MAX_HOURS_FOR_OLDEST_TX = 12
 MIN_SHUTTLE_AMOUNT = 10
 SHUTTLES_NEEDED_FOR_TX = 10
-#SHUTTLE_STARTING_BLOCK = 33043953
-SHUTTLE_STARTING_BLOCK = 33072948
+SHUTTLE_STARTING_BLOCK = 33043953
+# SHUTTLE_STARTING_BLOCK = 33072948
 
 
 def do_shuttle():
@@ -45,6 +45,7 @@ def do_shuttle():
     logger.info(f"querying gnosisscan with starting block: {SHUTTLE_STARTING_BLOCK}...")
     gnosis_url = f"https://api.gnosisscan.io/api?module=account&action=tokentx&address={config['multisig']['gnosis']}&startblock={SHUTTLE_STARTING_BLOCK}&endblock=99999999&page=1&offset=10000&sort=asc&apikey={os.getenv('GNOSIS_SCAN_IO_API_KEY')}"
     json_result = json.load(request.urlopen(gnosis_url))
+
 
 
     if not json_result["result"]:
