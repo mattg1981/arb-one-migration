@@ -61,7 +61,12 @@ if __name__ == '__main__':
 
     tx_hash = tx_block['hash']
     from_address = tx['from']
+
     to_address = tx['to']
+    if to_address.lower() != config["multisig"]["gnosis"].lower():
+        print('transaction not sent to Multisig...')
+        exit(4)
+
     timestamp = datetime.fromtimestamp(tx_block['timestamp'])
 
     input = tx.input.hex()
