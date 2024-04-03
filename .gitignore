@@ -1,6 +1,6 @@
 /.env
 /venv/
-/logs/
+/logs/*
 /database/*.db
 /out/*.json
 /.idea
