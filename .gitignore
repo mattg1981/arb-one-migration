@@ -3,3 +3,5 @@
 /logs/
 /database/*.db
 /out/*.json
+/.idea
+/arb1.db
