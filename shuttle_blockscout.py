@@ -180,38 +180,6 @@ def do_shuttle():
             except Exception as e:
                 logger.error(f"  could not send notification to [{username[0]}]")
 
-    # gno_notify_sql = '''
-    #             select * from shuttle where created_at = ?;
-    #             '''
-    #
-    # with sqlite3.connect(config["db_location"]) as db:
-    #     db.row_factory = lambda c, r: dict(zip([col[0] for col in c.description], r))
-    #     cur = db.cursor()
-    #     cur.execute(gno_notify_sql, [dt_process_runtime])
-    #     gno_notifications = cur.fetchall()
-    #
-    # for gno_notification in gno_notifications:
-    #     if Decimal(gno_notification['readable_amount']) < Decimal(MIN_SHUTTLE_AMOUNT):
-    #         message = config["lottery_message"]
-    #         subject = 'Arb1 Shuttle - Lottery Entry!'
-    #     else:
-    #         message = config["gno_confirmation_message"]
-    #         subject = 'Arb1 Shuttle - Gnosis deposit found!'
-    #
-    #     try:
-    #         # create message
-    #         message = (message
-    #                .replace("#NAME#", gno_notification['from_user'])
-    #                .replace("#GNO_TX_HASH#", gno_notification['gno_tx_hash'])
-    #                .replace("#AMOUNT#", str(gno_notification['readable_amount']))
-    #                .replace("#TOKEN#", "DONUT"))
-    #
-    #     # send message
-    #
-    #         reddit.redditor(gno_notification['from_user']).message(subject=subject, message=message)
-    #     except Exception as e:
-    #         logger.error(f"  could not send notification to [{gno_notification['from_user']}]")
-
     logger.info("begin processing shuttles...")
     logger.info("connect to INUFRA...")
 
@@ -422,10 +390,11 @@ if __name__ == '__main__':
     logger.setLevel(logging.INFO)
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    log_path = os.path.join(base_dir, f"logs/{log_name}.log")
+    log_path = os.path.join(base_dir, "logs", f"{log_name}.log")
     file_handler = RotatingFileHandler(os.path.normpath(log_path), maxBytes=2500000, backupCount=100)
     file_handler.setFormatter(formatter)
     console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
 
